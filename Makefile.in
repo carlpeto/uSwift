@@ -83,6 +83,7 @@ endif
 
 S4A_DEPLOYMENT_DIR = $(PWD)/deploy/S4A
 S4A_REPOSITORY_URL = git@github.com:swiftforarduino/S4A.git
+USWIFT_ARCH_BINARY_REPOSITORY_URL = git@github.com:swiftforarduino/uSwift-$(ARCH).git
 S4A_DEPLOYMENT_AVR_RESOURCES_DIR = $(S4A_DEPLOYMENT_DIR)/SwiftForArduino/AVR-resources
 
 USWIFT_ARCH_BINARY_REPOSITORY_STAGING_CHECKOUT_PATH = $(S4A_DEPLOYMENT_DIR)/BuildEngine/uSwift-$(ARCH)

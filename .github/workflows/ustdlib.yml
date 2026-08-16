@@ -1,0 +1,89 @@
+name: MicroSwiftStdlib
+
+on:
+  workflow_dispatch:
+    inputs:
+      debug:
+        type: boolean
+        description: Build with debug symbols
+        default: false
+      updateBinaryRepo:
+        type: boolean
+        description: Update the binary repos uSwift-AVR and uSwift-ARM automatically.
+        default: false
+
+#temporarily run only manually while we get it working
+  # push:
+  #   branches:
+  #   - main
+
+  # pull_request:
+  #   branches:
+  #   - main
+
+# ARCH: 'AVR'
+env:
+  IN_CI: 'yes'
+
+jobs:
+  build-avr:
+    runs-on: [self-hosted, macOS, avrgcc]
+
+    strategy:
+      matrix:
+        arch: ['AVR','ARM']
+
+    env:
+      S4A_WORKSPACE: ${{ github.workspace }}/workspace/${{ matrix.arch }}/S4A-install
+      ARCH: ${{ matrix.arch }}
+      SWIFT_COMPILER_DIR: ${{ github.workspace }}/compilers/swift
+
+    steps:
+
+    - name: Set Environment Variables
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ inputs.debug }}" = "true" ]; then
+            echo "DEBUG=yes" >> $GITHUB_ENV
+          else
+            echo "DEBUG=no" >> $GITHUB_ENV
+          fi
+        else
+          # Defaults for push/pull_request
+          echo "DEBUG=no" >> $GITHUB_ENV
+        fi
+
+    - name: Clean
+      run: rm -rf workspace bin deploy
+
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Git Submodule Update
+      run: |
+        git submodule init
+        git submodule update --remote --recursive
+
+    # It's slow and inefficient downloading the compiler every time.
+    # We can upgrade it to some system that detects if it needs to update or not (rsync?)
+    - name: Download Swift Compiler
+      run: |
+        ./get-compilers.sh ${SWIFT_COMPILER_DIR}
+        ${SWIFT_COMPILER_DIR}/swift -version
+
+    - name: Make install directory
+      run: mkdir -p $S4A_WORKSPACE
+
+    - name: Build uSwift
+      run: /usr/bin/make
+
+    - name: Archive Built Products
+      uses: actions/upload-artifact@v4
+      with:
+        name: uSwift (AVR)
+        path: ${{ env.S4A_WORKSPACE }}/**
+
+    - name: Update Binary Repo
+      if: inputs.updateBinaryRepo
+      run: /usr/bin/make update-github-binaries
