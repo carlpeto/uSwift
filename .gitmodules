@@ -1,0 +1,3 @@
+[submodule "uSwiftShims"]
+	path = uSwiftShims
+	url = https://github.com/swiftforarduino/uSwiftShims

@@ -1,0 +1,143 @@
+// these stubs are really only to prevent linker errors
+
+// depending on the configuration linked, they can either
+// do nothing or pass through to a noreturn function that
+// blinks a telltale LED and hangs, so the developer knows
+// unsupported runtime has been used
+// for the passthrough case, all kinds of weird results may occur
+// in a program that uses the stubs... they're set as void return
+// so the program will be reading garbage for any return value
+// and of course, the functions will do nothing, which will create
+// all kinds of other bugs if called with an expectation
+
+// to alleviate this, the current microswift compiler also
+// reads this same file to get a list of functions that are
+// unsupported runtime, and emits a compiler warning to tee
+// up the developer early in the dev cycle that this must be
+// addressed
+
+
+FAKE_RUNTIME(_swift_isClassOrObjCExistentialType)
+FAKE_RUNTIME(_swift_stdlib_getDefaultErrorCode)
+FAKE_RUNTIME(swift_getErrorValue)
+FAKE_RUNTIME(swift_isUniquelyReferenced_nonNull_native)
+FAKE_RUNTIME(swift_isOptionalType)
+FAKE_RUNTIME(swift_arrayAssignWithTake)
+FAKE_RUNTIME(swift_arrayDestroy)
+FAKE_RUNTIME(swift_getEnumCaseMultiPayload)
+FAKE_RUNTIME(swift_initEnumMetadataMultiPayload)
+FAKE_RUNTIME(swift_storeEnumTagMultiPayload)
+FAKE_RUNTIME(_swift_makeAnyHashableUpcastingToHashableBaseType)
+
+// These from Runtime.md in the swift/docs folder...
+
+FAKE_RUNTIME(swift_bufferHeaderSize)
+
+// seen as existing missing runtime in links...
+
+FAKE_RUNTIME(swift_arrayAssignWithCopyBackToFront)
+FAKE_RUNTIME(swift_arrayAssignWithCopyFrontToBack)
+FAKE_RUNTIME(swift_arrayInitWithCopy)
+FAKE_RUNTIME(swift_arrayInitWithTakeBackToFront)
+FAKE_RUNTIME(swift_arrayInitWithTakeFrontToBack)
+FAKE_RUNTIME(swift_allocateGenericValueMetadata)
+FAKE_RUNTIME(swift_checkMetadataState)
+FAKE_RUNTIME(swift_getExistentialTypeMetadata)
+FAKE_RUNTIME(swift_getForeignTypeMetadata)
+FAKE_RUNTIME(swift_getGenericMetadata)
+FAKE_RUNTIME(swift_getTupleTypeLayout2)
+FAKE_RUNTIME(swift_getTupleTypeMetadata2)
+FAKE_RUNTIME(swift_initStructMetadata)
+FAKE_RUNTIME(swift_dynamicCast)
+FAKE_RUNTIME(swift_intToFloat32)
+FAKE_RUNTIME(swift_getAssociatedConformanceWitness)
+FAKE_RUNTIME(swift_getAssociatedTypeWitness)
+FAKE_RUNTIME(swift_getWitnessTable)
+FAKE_RUNTIME(swift_initEnumMetadataSinglePayload)
+FAKE_RUNTIME(swift_registerProtocolConformances)
+FAKE_RUNTIME(swift_conformsToProtocol)
+FAKE_RUNTIME(swift_reportError)
+FAKE_RUNTIME(swift_deletedMethodError)
+FAKE_RUNTIME(swift_getTypeByMangledNameInContext)
+FAKE_RUNTIME(swift_getTypeByMangledNameInContextInMetadataState)
+
+
+// new in Swift 5.9 and Swift 5.11
+FAKE_RUNTIME(swift_getTypeByMangledNameInContext2)
+FAKE_RUNTIME(swift_getTypeByMangledNameInContextInMetadataState2)
+FAKE_RUNTIME(swift_getOpaqueTypeMetadata2)
+FAKE_RUNTIME(swift_getOpaqueTypeConformance2)
+FAKE_RUNTIME(swift_conformsToProtocol2)
+
+
+
+
+#define EXPERIMENTAL_RUNTIME(fn) RUNTIME(fn) FAKE_RUNTIME(fn)
+
+
+// now implemented in uSwift runtime:
+// (still experimental, so also create weak linked stubs in case developer doesn't want to use this)
+
+// from HeapObject.cpp...
+
+EXPERIMENTAL_RUNTIME(swift_allocObject)
+EXPERIMENTAL_RUNTIME(swift_initStackObject)
+EXPERIMENTAL_RUNTIME(swift_bufferAllocate)
+EXPERIMENTAL_RUNTIME(swift_allocBox)
+EXPERIMENTAL_RUNTIME(swift_deallocBox)
+EXPERIMENTAL_RUNTIME(swift_projectBox)
+EXPERIMENTAL_RUNTIME(swift_allocEmptyBox)
+EXPERIMENTAL_RUNTIME(swift_retain)
+EXPERIMENTAL_RUNTIME(swift_retain_n)
+EXPERIMENTAL_RUNTIME(swift_release)
+EXPERIMENTAL_RUNTIME(swift_deallocClassInstance)
+EXPERIMENTAL_RUNTIME(swift_deallocPartialClassInstance)
+EXPERIMENTAL_RUNTIME(swift_deallocObject)
+EXPERIMENTAL_RUNTIME(swift_deallocUninitializedObject)
+
+// present but was not already stubbed, probably missed earlier, or internal use
+// by other parts of the runtime and not emitted as a call by the compiler
+
+EXPERIMENTAL_RUNTIME(swift_retainCount)
+EXPERIMENTAL_RUNTIME(swift_unownedRetainCount)
+EXPERIMENTAL_RUNTIME(swift_weakRetainCount)
+EXPERIMENTAL_RUNTIME(swift_unownedRetain)
+EXPERIMENTAL_RUNTIME(swift_unownedRelease)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_unownedRetain)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_unownedRelease)
+EXPERIMENTAL_RUNTIME(swift_unownedRetain_n)
+EXPERIMENTAL_RUNTIME(swift_unownedRelease_n)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_unownedRetain_n)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_unownedRelease_n)
+
+
+EXPERIMENTAL_RUNTIME(swift_tryRetain)
+EXPERIMENTAL_RUNTIME(swift_isDeallocating)
+EXPERIMENTAL_RUNTIME(swift_setDeallocating)
+EXPERIMENTAL_RUNTIME(swift_unownedRetainStrong)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_unownedRetainStrong)
+EXPERIMENTAL_RUNTIME(swift_unownedRetainStrongAndRelease)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_unownedRetainStrongAndRelease)
+EXPERIMENTAL_RUNTIME(swift_unownedCheck)
+EXPERIMENTAL_RUNTIME(_swift_release_dealloc)
+
+
+EXPERIMENTAL_RUNTIME(swift_verifyEndOfLifetime)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_retain)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_retain_n)
+EXPERIMENTAL_RUNTIME(swift_makeBoxUnique)
+EXPERIMENTAL_RUNTIME(swift_initStaticObject)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_release)
+EXPERIMENTAL_RUNTIME(swift_nonatomic_release_n)
+
+
+EXPERIMENTAL_RUNTIME(swift_weakInit)
+EXPERIMENTAL_RUNTIME(swift_weakAssign)
+EXPERIMENTAL_RUNTIME(swift_weakLoadStrong)
+EXPERIMENTAL_RUNTIME(swift_weakTakeStrong)
+EXPERIMENTAL_RUNTIME(swift_weakDestroy)
+EXPERIMENTAL_RUNTIME(swift_weakCopyInit)
+EXPERIMENTAL_RUNTIME(swift_weakTakeInit)
+EXPERIMENTAL_RUNTIME(wift_weakCopyAssign)
+EXPERIMENTAL_RUNTIME(swift_weakTakeAssign)
+

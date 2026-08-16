@@ -1,0 +1,424 @@
+# architecture
+ifeq ($(ARCH),)
+$(info defaulting to AVR)
+ARCH := AVR
+endif
+
+$(info Using architecture $(ARCH))
+
+# I can't think of a reason why this would not be default now
+EXPERIMENTAL_FEATURE = Embedded
+
+# Currently we are only adding debug information to files produced by swift, clang and llc
+# because gcc debug information emits two types of relocation that lld doesn't support
+# namely R_AVR_DIFF16 and R_AVR_DIFF32
+# once they are added to lld (llvm-project/lld/ELF/Arch/AVR.cpp), we can add the -g switch to GCC_DEBUG_OPTS
+# Swift debugging in the standard libr
+
+ifeq ($(DEBUG),yes)
+GCC_DEBUG_OPTS = 
+CLANG_DEBUG_OPTS = -g
+SWIFT_DEBUG_OPTS = -g
+endif
+
+ifeq ($(ARCH),AVR)
+ARCH_SYSTEM_INCLUDES ?= -isystem "$(AVR_LIBGCC_INCLUDE_DIR)" -isystem "$(AVR_LIBC_INCLUDE_DIR)"
+ARCH_SWIFT_SYSTEM_INCLUDES ?= -I "$(AVR_LIBGCC_INCLUDE_DIR)" -I "$(AVR_LIBC_INCLUDE_DIR)"
+ARCH_INCLUDES ?= 
+ARCH_TARGET ?= avr-none-none-elf
+ARCH_GNU_TOOLS_BIN_DIR ?= $(ATMEL_GNU_AVR_TOOLCHAIN_BIN)
+ARCH_TOOL_PREFIX ?= avr-
+ARCH_LD_SCRIPTS_DIR ?= $(AVR_LD_SCRIPTS_DIR)
+ARCH_LD_SCRIPT ?= $(AVR_LD_SCRIPT)
+ARCH_LINK_LIBRARIES = -L"$(AVR_LIBC_DIR)" -L"$(AVR_LIBGCC_DIR)" -LAVR/bin
+ARCH_LD_OPTS = $(AVR_LD_OPTS)
+ARCH_LD_END = $(AVR_LD_END)
+ARCH_GCC_OPTS = $(AVR_GCC_OPTS)
+ARCH_CLANG_OPTS = $(AVR_CLANG_OPTS)
+ARCH_C_DEFINES = $(AVR_C_DEFINES)
+
+# options
+ifeq ($(SUBARCH),UNMANAGED)
+SWIFT_ARCH_DEFINES = $(SWIFT_AVR_DEFINES) $(SWIFT_AVR_UNMANAGED_DEFINES)
+else #ifeq ($(SUBARCH),COMPATIBILITY)
+SWIFT_ARCH_DEFINES = $(SWIFT_AVR_DEFINES) $(SWIFT_AVR_COMPATIBILITY_ARRAY_BUFFER_DEFINES)
+endif
+
+ARCH_LLC_OPTS = -march=avr -mcpu=$(LLC_MCU)
+ARCH_INT_BIT_WIDTH = 16
+ARCH_UPLOAD_FILE_FORMAT = HEX
+else ifeq ($(ARCH),ARM)
+ARCH_SYSTEM_INCLUDES ?= -isystem "$(ARM_ATSAMD21A_DFP_INCLUDE_DIR)" -isystem "$(ARM_CMSIS_INCLUDE_DIR)"\
+ -isystem "$(ATMEL_GNU_ARM_LIBC_INCLUDE_DIR)" -isystem "$(ATMEL_GNU_ARM_LIBGCC_INCLUDE_DIR)"
+ARCH_SWIFT_SYSTEM_INCLUDES ?= -I "$(ARM_ATSAMD21A_DFP_INCLUDE_DIR)" -I "$(ARM_CMSIS_INCLUDE_DIR)"\
+ -I "$(ATMEL_GNU_ARM_LIBC_INCLUDE_DIR)" -I "$(ATMEL_GNU_ARM_LIBGCC_INCLUDE_DIR)"
+ARCH_INCLUDES ?= 
+ARCH_TARGET ?= arm-none-linux-gnueabihf
+ARCH_GNU_TOOLS_BIN_DIR ?= $(ATMEL_GNU_ARM_TOOLCHAIN_BIN)
+ARCH_TOOL_PREFIX ?= arm-none-eabi-
+ARCH_LD_SCRIPTS_DIR ?= $(ARM_LD_SCRIPTS_DIR)
+ARCH_LD_SCRIPT ?= $(ARM_LD_SCRIPT)
+ARCH_LINK_LIBRARIES = $(ARM_RUNTIME_OBJECTS) -LARM
+ARCH_LD_OPTS = $(ARM_LD_OPTS)
+ARCH_LD_END = $(ARM_LD_END)
+ARCH_GCC_OPTS = $(ARM_GCC_OPTS)
+ARCH_CLANG_OPTS = $(ARM_CLANG_OPTS)
+ARCH_C_DEFINES = $(ARM_C_DEFINES)
+SWIFT_ARCH_DEFINES = $(SWIFT_ARM_DEFINES) -DFORCE_MAIN_SWIFT_ARRAYS
+LD_BIN = $(GCC)
+ARCH_RUNTIME_DEPS = $(ARM_RUNTIME_OBJECTS)
+ARCH_LLC_OPTS = -march=arm -mcpu=cortex-m0plus -mattr=+thumb-mode -float-abi=soft
+LINK_TOOLS_DIR ?= $(ARCH_GNU_TOOLS_BIN_DIR)
+ARCH_INT_BIT_WIDTH = 32
+ARCH_UPLOAD_FILE_FORMAT = BIN
+else
+$(error Arch $(ARCH) unknown or no ARCH defined)
+endif
+
+ifeq ($(SUBARCH),UNMANAGED)
+USWIFT_VARIANT_SUBDIR = unmanaged-arrays
+else
+USWIFT_VARIANT_SUBDIR = $(EXPERIMENTAL_FEATURE)
+endif
+
+S4A_DEPLOYMENT_DIR = $(PWD)/deploy/S4A
+S4A_REPOSITORY_URL = git@github.com:swiftforarduino/S4A.git
+S4A_DEPLOYMENT_AVR_RESOURCES_DIR = $(S4A_DEPLOYMENT_DIR)/SwiftForArduino/AVR-resources
+
+USWIFT_ARCH_BINARY_REPOSITORY_STAGING_CHECKOUT_PATH = $(S4A_DEPLOYMENT_DIR)/BuildEngine/uSwift-$(ARCH)
+USWIFT_ARCH_BINARY_SUBMODULE = uSwift-$(ARCH)
+# USWIFT_ARCH_BINARY_REPOSITORY_URL = git@github.com:swiftforarduino/uSwift-$(ARCH).git
+
+ifneq ($(USWIFT_VARIANT_SUBDIR),)
+USWIFT_ARCH_BIN_PATH = bin/$(ARCH)-$(USWIFT_VARIANT_SUBDIR)
+USWIFT_ARCH_BINARY_REPOSITORY_STAGING_PATH = $(USWIFT_ARCH_BINARY_REPOSITORY_STAGING_CHECKOUT_PATH)/$(USWIFT_VARIANT_SUBDIR)
+else
+USWIFT_ARCH_BIN_PATH = bin/$(ARCH)
+USWIFT_ARCH_BINARY_REPOSITORY_STAGING_PATH = $(USWIFT_ARCH_BINARY_REPOSITORY_STAGING_CHECKOUT_PATH)
+endif
+
+ARCH_GCC_BIN ?= $(ARCH_TOOL_PREFIX)gcc
+ARCH_GCC_PLUS_BIN ?= $(ARCH_TOOL_PREFIX)g++
+ARCH_AR_BIN ?= $(ARCH_TOOL_PREFIX)ar
+
+# other tools to complete the build
+OBJCOPY = "$(LINK_TOOLS_DIR)/$(ARCH_TOOL_PREFIX)objcopy"
+OBJDUMP = "$(LINK_TOOLS_DIR)/$(ARCH_TOOL_PREFIX)objdump"
+AVRSIZE = "$(LINK_TOOLS_DIR)/$(ARCH_TOOL_PREFIX)size"
+
+# AVR
+# reverted to using homebrew gcc to build AVR on the macbook pro - gcc is no longer part of S4A IDE
+ATMEL_GNU_AVR_TOOLCHAIN_BIN = # use system default /usr/local/avr8-gnu-toolchain-darwin_x86_64/bin/
+CORE ?= avr5
+AVR_LIBC_DIR = $(GITHUB_WORKSPACE)/gpl-tools-avr/lib/avr-libc/lib/$(CORE)
+AVR_LIBGCC_DIR = $(LINK_LIBRARIES_DIR)/avr-libgcc/$(CORE)
+AVR_LIBC_INCLUDE_DIR = $(LINK_LIBRARIES_DIR)/avr-libc/include
+AVR_LIBGCC_INCLUDE_DIR = $(LINK_LIBRARIES_DIR)/avr-libgcc/include
+AVR_LD_SCRIPTS_DIR = $(LINK_LIBRARIES_DIR)/avr-binutils/avr/lib/ldscripts
+AVR_LD_SCRIPT = $(CORE).xn
+AVR_LD_OPTS = --static -Tdata 0x800100 "$(AVR_LIBC_DIR)/crt$(MCU).o" $(LD_FLOATING_POINT_PRINT_OPTS) --gc-sections\
+ -z dead-reloc-in-nonalloc='.debug_*=0xffffffff'\
+ -z dead-reloc-in-nonalloc=.debug_loc=0xfffffffe\
+ -z dead-reloc-in-nonalloc=.debug_ranges=0xfffffffe
+AVR_LD_END = --start-group -lgcc -lm -lc -l$(MCU) --end-group
+AVR_GCC_OPTS = -mmcu=$(MCU)
+AVR_CLANG_OPTS = -mmcu=$(MCU)
+AVR_C_DEFINES = -DAVR_LIBC_DEFINED -DLIBC_DEFINED
+SWIFT_AVR_DEFINES = -DAVR_LIBC_DEFINED_SWIFT $(EXTRA_SWIFT_DEFINES:%=-D%)
+SWIFT_AVR_UNMANAGED_DEFINES = -DUNMANAGED_ARRAYS
+SWIFT_AVR_COMPATIBILITY_ARRAY_BUFFER_DEFINES = -DFORCE_MAIN_SWIFT_ARRAYS
+
+ifeq ($(INCLUDE_PRINTF_FLT),yes)
+	# use this if you want to use libc floating point formatting
+	LD_FLOATING_POINT_PRINT_OPTS = -u vfprintf -lprintf_flt
+endif
+LD_FLOATING_POINT_PRINT_OPTS ?= 
+
+# Fallback AVR.zip for extracting libCAVR.a if we don't have avr-gcc to build it locally...
+
+AVR_EMBEDDED_ZIP_FALLBACK_DIR = $(S4A_AVR_RESOURCES_DIR)
+AVR_EMBEDDED_ZIP_FALLBACK_FILE = AVR-Embedded.zip
+AVR_EMBEDDED_ZIP_FALLBACK_UNZIPPED_SUBDIR = AVR-Embedded
+
+
+# ARM
+# once 5.0 is out and stable, maybe we can reference arm tools in the bundle instead
+mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
+current_dir := $(notdir $(patsubst %/,%,$(dir $(mkfile_path))))
+# This is a relative path to the S4A source directory and is not portable, override it with the correct value
+S4A_SOURCE_CODE_DIR ?= $(HOME)/Documents/Code/S4A
+
+ARM_ATSAMD21A_DFP_DIR = $(S4A_SOURCE_CODE_DIR)/BuildEngine/ide-support-arm/ATSAMD21-DFP/samd21a
+ARM_ATSAMD21A_DFP_INCLUDE_DIR = $(ARM_ATSAMD21A_DFP_DIR)/include
+
+# currently we don't have CMSIS downloaded, needs getting from Atmel
+ARM_CMSIS_INCLUDE_DIR = $(HOME)/Downloads/ARM.CMSIS.5.7.0/CMSIS/Core/Include
+
+ATMEL_GNU_ARM_TOOLCHAIN = $(GITHUB_WORKSPACE)/gpl-tools-arm
+ATMEL_GNU_ARM_TOOLCHAIN_BIN = $(ATMEL_GNU_ARM_TOOLCHAIN)/bin/
+ATMEL_GNU_ARM_LIBGCC_INCLUDE_DIR = $(ATMEL_GNU_ARM_TOOLCHAIN)/lib/gcc/arm-none-eabi/6.3.1/include
+ATMEL_GNU_ARM_LIBC_INCLUDE_DIR = $(ATMEL_GNU_ARM_TOOLCHAIN)/arm-none-eabi/include
+
+ATMEL_GNU_ARM_GCC_SYSTEM_DIR = $(ARM_ATSAMD21A_DFP_DIR)/gcc
+# ARM_LD_SCRIPTS_DIR = $(ARM_ATSAMD21A_DFP_DIR)/gcc/gcc
+ARM_LD_SCRIPTS_DIR = $(ARM_RUNTIME_DIR)
+ARM_LD_SCRIPT = samd21g18a_flash.ld
+ARM_LD_OPTS = --static -Wl,--gc-sections -Wl,--section-start=.text=0x2000 -nostdlib
+ARM_LD_END =
+ARM_DEVICE_MACRO = __SAMD21G18A__
+ARM_C_DEFINES = -D$(ARM_DEVICE_MACRO) -DLIBC_DEFINED
+SWIIFT_ARM_DEFINES =
+ARM_GCC_OPTS = -mcpu=cortex-m0plus -mthumb -Os -nostdlib
+ARM_CLANG_OPTS =
+ARM_STARTUP_C_FILE = startup_samd21g18a.c
+ARM_SYSTEM_C_FILE = system_samd21g18a.c
+ARM_RUNTIME_DIR = arm-atsamd21-arduino-nano-iot-33
+ARM_RUNTIME_OBJECTS = $(ARM_RUNTIME_DIR)/startup_samd21g18a.o $(ARM_RUNTIME_DIR)/system_samd21g18a.o
+
+
+# tools
+SWIFT_FOR_ARDUINO_APP ?= /Applications/S4A IDE Pro.app
+SWIFT_FOR_ARDUINO_BUILD_ENGINE ?= $(SWIFT_FOR_ARDUINO_APP)/Contents/XPCServices/BuildEngine.xpc/Contents
+SWIFT_FOR_ARDUINO_UNSAFE_SAMPLE_MODULES ?= "$(SWIFT_FOR_ARDUINO_APP)/Contents/Resources/SampleLibraries/unsafe_modules"
+
+# This is only until we have the tools in a neat form in the IDE bundle
+LINK_LIBRARIES_DIR = $(SWIFT_FOR_ARDUINO_BUILD_ENGINE)/Resources/lib
+LINK_TOOLS_DIR ?= $(SWIFT_FOR_ARDUINO_BUILD_ENGINE)/MacOS
+LINK_TOOLS_BETA_DIR ?= $(SWIFT_FOR_ARDUINO_BUILD_ENGINE)/MacOS
+SIMAVR ?= $(LINK_TOOLS_BETA_DIR)/simavr
+
+TEMPORARY_AR_OVERRIDE_DIR = $(HOME)/Downloads
+TEMPORARY_LLC_OVERRIDE_DIR = $(HOME)/Downloads
+
+# for "installing" either AVR/ARM or uSwift into the S4A source code project
+S4A_ROOT_DIRECTORY ?= $(HOME)/Documents/Code/S4A
+S4A_BUILD_ENGINE_USWIFT_DIR = $(S4A_ROOT_DIRECTORY)/BuildEngine/uSwift-$(ARCH)/Embedded
+S4A_BUILD_ENGINE_USWIFT_SHIMS_DIR = $(S4A_ROOT_DIRECTORY)/BuildEngine/uSwiftShims
+S4A_AVR_RESOURCES_DIR = $(S4A_ROOT_DIRECTORY)/SwiftForArduino/AVR-resources
+S4A_ARM_RESOURCES_DIR = $(S4A_ROOT_DIRECTORY)/SwiftForArduino/ARM-resources
+
+# S4A_BUILD_ENGINE_AVR_DIR = $(S4A_ROOT_DIRECTORY)/BuildEngine/large-binaries/AVR
+# S4A_BUILD_ENGINE_ARM_DIR = $(S4A_ROOT_DIRECTORY)/BuildEngine/large-binaries/ARM
+# S4A_DOCUMENTATION_DIR = $(S4A_ROOT_DIRECTORY)/SwiftForArduino
+
+
+GCC_OPTS ?= $(ARCH_GCC_OPTS) $(ARCH_INCLUDES) $(ARCH_SYSTEM_INCLUDES) $(ARCH_C_DEFINES) -std=c99 -ffunction-sections -O3 $(GCC_DEBUG_OPTS) -I.
+GCC_PLUS_OPTS ?= $(ARCH_GCC_OPTS) $(ARCH_INCLUDES) $(ARCH_SYSTEM_INCLUDES) $(ARCH_C_DEFINES) -std=c++11 -ffunction-sections -O3 $(GCC_DEBUG_OPTS) -I.
+
+GCC = $(ARCH_GNU_TOOLS_BIN_DIR)$(ARCH_GCC_BIN) $(GCC_OPTS)
+GCC_PLUS = $(ARCH_GNU_TOOLS_BIN_DIR)$(ARCH_GCC_PLUS_BIN) $(GCC_PLUS_OPTS)
+
+# binutils... a slim version of this will be installed in the IDE but we use a fuller version here
+AR_OPTS = rcs
+AR = $(ARCH_GNU_TOOLS_BIN_DIR)$(ARCH_AR_BIN) $(AR_OPTS)
+
+
+# avrdude... likewise avrdude
+AVRDUDE_DIR = $(LINK_TOOLS_DIR)
+AVRDUDE_OPTS = -c $(PROGRAMMER) -p $(MCU) -V -C "$(SWIFT_FOR_ARDUINO_BUILD_ENGINE)/avrdude/6.3_1/etc/avrdude.conf"
+AVRDUDE = "$(AVRDUDE_DIR)/avrdude" $(AVRDUDE_OPTS) $(AVRDUDE_PORT)
+
+# other tools
+SED = sed # use the native mac sed, it's fine for now, it's a BSD one but compatible enough
+
+
+# we cannot use clang and includes in the swift for arduino IDE app bundle yet (in 4.0.2 at the time of writing)
+# they may need to be included in the professional/full version later to make command line builds work
+# although probably not, we are not going to be recompiling the uSwift or AVR libraries as part of command line
+# builds, so we will probably leave people using avr-gcc for any C/C++ code to integrate into their builds
+# until we have upgraded the full toolchain in the IDE to use lld, compiler-rt and libcxx and eliminated all
+# gnu components from the build itself
+
+# First setup the directory variables...
+# SWIFT_DIR ?= $(SWIFT_FOR_ARDUINO_BUILD_ENGINE)/swift
+# SWIFT_DIR ?= $(HOME)/built/swift-experimental
+SWIFT_DIR = $(SWIFT_COMPILER_DIR)
+# SWIFT_DIR ?= $(HOME)/Documents/Code/swift/build/Ninja-ReleaseAssert/swift-macosx-x86_64/bin
+
+# the directory for llc...
+LLVM_TOOLS_DIR ?= $(SWIFT_FOR_ARDUINO_BUILD_ENGINE)/MacOS
+
+# clang, llvm includes may need to be included in the application resources to work
+# for now, just reference the same directory llc is in
+
+CLANG_DIR ?= $(SWIFT_FOR_ARDUINO_BUILD_ENGINE)/MacOS
+CXX_DIR ?= $(SWIFT_FOR_ARDUINO_BUILD_ENGINE)/MacOS
+
+
+# Then setup various settings...
+
+C_HEADER ?= main.h
+
+TARGET ?= avr-unknown-unknown
+
+#default to Arduino UNO (Atmega 328P)
+MCU ?= atmega328p
+CPU_FREQUENCY ?= 16000000
+
+ifeq ($(PROGRAMMER),)
+PROGRAMMER = arduino
+BAUD = 115200
+endif
+
+ifeq ($(PORT),)
+AVRDUDE_PORT = -P $(shell ls /dev/cu.usbmodem* 2> /dev/null|head -1) -b $(BAUD)
+BOSSAC_PORT = $(shell ls /dev/cu.usbmodem* 2> /dev/null|head -1|sed -nEe 's/\/dev\///p')
+else
+ifneq ($(BAUD),)
+AVRDUDE_PORT = -P $(PORT) -b $(BAUD)
+else
+AVRDUDE_PORT = -P $(PORT)
+endif
+BOSSAC_PORT = $(shell echo $(PORT)|sed -nEe 's/\/dev\///p')
+endif
+
+# LINKER...
+
+
+
+
+
+# We force the inclusion of vfprintf in the link even if it wouldn't usually be.
+# In the most conservative case, we could only add this flag/feature in programs where we know the user is
+# doing some print statements to the UART or some similar formatting for a byte buffer (e.g. to I2C) and if
+# it is not used (e.g. a trivial blink program), not link it and save some bytes in the link, but it's hard to
+# imagine this will be worth it for many users. Nevertheless, when looking at the final elf file, it may seem
+# surprising that vfprintf is always there, even in trivial code when it's not used. This is why.
+
+# book end the link with these commands, i.e. LD_END must be after the things being linked
+LD_OPTS = $(ARCH_LINK_LIBRARIES) -L. -L"$(ARCH_LD_SCRIPTS_DIR)" -T$(ARCH_LD_SCRIPT) $(ARCH_LD_OPTS) -Map main.map
+LD_BIN ?= "$(LLVM_TOOLS_DIR)/ld.lld"
+LD = $(LD_BIN) $(LD_OPTS)
+
+
+LD_END = $(ARCH_LD_END)
+
+INDEX_STORE=index
+
+
+
+#swift
+ifneq ($(ARCH_C_DEFINES),)
+	SWIFTC_ARCH_DEFINES = $(patsubst %,-Xcc %,$(ARCH_C_DEFINES)) $(SWIFT_ARCH_DEFINES)
+endif
+
+ifneq ($(EXPERIMENTAL_FEATURE),)
+ifeq ($(EXPERIMENTAL_FEATURE),Embedded)
+EXPERIMENTAL_FEATURE_FLAG = -enable-experimental-feature $(EXPERIMENTAL_FEATURE) -enable-experimental-feature LifetimeDependence\
+ -enable-experimental-feature MoveOnly -enable-experimental-feature ExistentialAny -enable-experimental-feature BitwiseCopyable\
+ -enable-experimental-feature NonescapableTypes -enable-experimental-feature InoutLifetimeDependence\
+ -enable-experimental-feature LifetimeDependenceMutableAccessors -enable-experimental-feature Lifetimes\
+ -enable-experimental-feature TypedThrows -enable-experimental-feature MoveOnlyPartialConsumption\
+ -enable-experimental-feature NoncopyableGenerics -enable-experimental-feature ConformanceSuppression\
+ -enable-experimental-feature BorrowingSwitch -enable-experimental-feature MemorySafetyAttributes\
+ -enable-experimental-feature NonescapableAccessorOnTrivial -enable-experimental-feature AddressableParameters\
+ -enable-experimental-feature AddressableTypes -enable-experimental-feature BuiltinEmplaceTypedThrows\
+ -enable-experimental-feature MoveOnlyTypes
+else
+EXPERIMENTAL_FEATURE_FLAG = -enable-experimental-feature $(EXPERIMENTAL_FEATURE)
+endif
+endif
+
+SWIFT_C_OPTS = -import-objc-header $(C_HEADER) $(SWIFTC_ARCH_DEFINES)
+INDEXING_OPTS = -index-store-path $(INDEX_STORE)
+
+# disable exclusive access checks for now at least, it's too heavyweight for uS
+SWIFT_OPTS = $(TARGET_OPTS) $(SWIFT_DEBUG_OPTS) $(SWIFT_C_OPTS) $(ARCH_INCLUDES) $(ARCH_SWIFT_SYSTEM_INCLUDES) -I uSwift/uSwiftShims -I $(uSWIFTLIB_DIR)\
+ -I $(uSWIFTLIB_DIR)/SwiftOnoneSupport -I . $(EXPERIMENTAL_FEATURE_FLAG)\
+ -enforce-exclusivity=unchecked -Xfrontend -disable-reflection-metadata -Xfrontend -disable-stack-protector\
+ $(INDEXING_OPTS) -nostdimport $(SWIFT_OPT_OPT)
+
+TARGET_OPTS = -target $(ARCH_TARGET)
+
+LLC_MCU ?= $(MCU)
+
+ifeq ($(ENABLE_OPTIMISATIONS),0)
+  # compile to machine code using LLC with optimisations off
+  # this will probably make an unusably large and slow program
+  # only runnable on a simulator with obscene RAM (10mb)
+  LLC_OPTS = -O0 $(ARCH_LLC_OPTS) -filetype=obj -function-sections -data-sections
+  SWIFT_OPT_OPT = -Onone
+else
+  LLC_OPTS = -O3 $(ARCH_LLC_OPTS) -filetype=obj -function-sections -data-sections
+  SWIFT_OPT_OPT = -O
+endif
+
+CLANG_OPTS = $(ARCH_INCLUDES) $(ARCH_SYSTEM_INCLUDES) $(ARCH_C_DEFINES) $(TARGET_OPTS) $(CLANG_DEBUG_OPTS)\
+ -D_DEBUG -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -ffunction-sections -fdata-sections $(ARCH_CLANG_OPTS)
+CLANG_PP_OPTS = $(ARCH_INCLUDES) $(ARCH_SYSTEM_INCLUDES) $(ARCH_C_DEFINES) -std=c++17 -stdlib=libc++ -fno-rtti -O3 -D_LIBCPP_HAS_THREAD_API_EXTERNAL $(ARCH_CLANG_OPTS)
+
+SWIFT = $(SWIFT_DIR)/swift
+SWIFTC = $(SWIFT_DIR)/swiftc
+CLANG = "$(CLANG_DIR)/clang" $(CLANG_OPTS)
+CLANG_PP = "$(CLANG_DIR)/clang++" $(CLANG_PP_OPTS) $(CLANG_OPTS)
+
+ifneq ($(OVERRIDE_LLC_DIR),)
+LLC = $(OVERRIDE_LLC_DIR)/llc
+else
+LLC = $(LLVM_TOOLS_DIR)/llc
+endif
+
+LLD = $(LLVM_TOOLS_DIR)/ld.lld
+LLVM-DIS ?= $(LLVM_TOOLS_DIR)/llvm-dis
+
+SWIFT_MAKE_MODULE = "$(SWIFTC)" $(TARGET_OPTS)
+IL_TO_OBJ = "$(LLC)" $(LLC_OPTS)
+
+#https://modocache.io/reading-and-understanding-the-swift-driver-source-code
+
+mkfile_directory := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+# override the built in rules
+%.o : %.S
+
+
+%.o : %.c
+	$(GCC) -c -o $@ -MMD -MF$(<:.c=.c.d) $<
+
+%.o : %.cpp
+	$(GCC_PLUS) -c -o $@ -MMD -MF$(<:.cpp=.cpp.d) $<
+
+%.o : %.s
+	$(GCC) -c -o $@ $<
+	@echo "Built $@ object"
+
+%.clang.bc : %.c
+	$(CLANG) -emit-llvm -c -o $@ -MMD -MF$(<:.c=.c.d) $<
+
+%.clang.bc : %.cpp
+	$(CLANG_PP) -emit-llvm -c -o $@ -MMD -MF$(<:.cpp=.cpp.d) $<
+
+%.txt : %.swift
+	$(SED) -nEf apify.sed $< > $@
+
+%.h.txt : %.h
+	$(SED) -nEf apify.sed $< > $@
+
+%.o : %.bc
+	$(IL_TO_OBJ) -o $@ $<
+	echo "Compiled $<"
+
+%.o : %.ll
+	$(IL_TO_OBJ) -o $@ $<
+	echo "Compiled $<"
+
+# The Autolinker...
+%.autolink-tmp.txt : %.o
+	$(OBJCOPY) -O binary --only-section=.swift1_autolink_entries $^ $@
+
+%.autolink.txt : %.autolink-tmp.txt
+	cat $<|tr '\000' ' ' > $@
+
+#  Diagnostic files...
+%.ll : %.bc
+	"$(LLVM-DIS)" $< > $@
+
+%.o.s : %.o
+	$(OBJDUMP) -xzdh $< > $@
+
+%.a.s : %.a
+	$(OBJDUMP) -xzdh $< > $@
+
+%.sil : %.swift
+	"$(SWIFTC)" -emit-sil $(patsubst $<,-primary-file $<,$(ALL_SOURCES)) $(TARGET_OPTS) -O $(SWIFT_TO_LL_EXTRA_OPTS)\
+	 $(ARCH_INCLUDES) $(ARCH_SWIFT_SYSTEM_INCLUDES) -module-name $(MODULE_NAME) -o $@

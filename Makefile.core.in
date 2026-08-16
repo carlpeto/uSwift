@@ -1,0 +1,240 @@
+# The adjunct makefile for building binaries, per core.
+
+RUNTIME_DIR = Runtime
+LLVM_RUNTIME_DIR = Runtime/llvm
+SHIMS_DIR = uSwiftShims
+
+RUNTIME_CLANG_H = \
+ HeapObject.h\
+ Metadata.h\
+ WeakReference.h\
+ missing_runtime_stub.h\
+ Config.h\
+ fake_runtime.def
+
+# manually compiled list of dependencies in shims
+# see uSwiftShims/module.modulemap
+# does not include CAVR.h or its deps
+SHIMS_H = \
+ Target.h\
+ RefCount.h\
+ System.h\
+ Visibility.h\
+ SwiftStdint.h\
+ SwiftStddef.h\
+ SwiftStdbool.h\
+ uswiftRuntime.h\
+ HeapObject.h
+
+LLVM_RUNTIME_CLANG_C = \
+ runtime_extra_math_stubs.c
+
+RUNTIME_CLANG_C_SHARED = \
+ legacyStubs.c \
+ uswiftRuntime.c \
+ interrupt_helper.c
+
+RUNTIME_CLANG_CPP = \
+ Exclusivity.cpp\
+ fake_runtime.cpp\
+ GlobalHashingObjectsOnly.cpp
+
+RUNTIME_CLANG_EXPERIMENTAL_CPP = \
+ HeapObject.cpp\
+ KnownMetadata.cpp\
+ RefCount.cpp
+
+ifeq ($(ARCH),AVR)
+RUNTIME_C = $(RUNTIME_C_SHARED)
+
+LLVM_RUNTIME_C_LIB = \
+ runtime_math_stubs.c\
+ mulosi4.c\
+ mulodi4.c\
+ multi3.c\
+ divti3.c\
+ udivti3.c\
+ udivmodti4.c\
+ truncsfhf2.c\
+ extendhfsf2.c\
+ truncdfhf2.c
+
+LLVM_RUNTIME_C = $(LLVM_RUNTIME_C_LIB)
+
+LLVM_RUNTIME_CPP = new_op.cpp
+
+RUNTIME_CLANG_C = $(RUNTIME_CLANG_C_SHARED) avr-progmem.c
+
+else
+
+RUNTIME_C = $(RUNTIME_C_SHARED)
+
+RUNTIME_CLANG_C = $(RUNTIME_CLANG_C_SHARED)
+
+endif
+
+BUILD_DIR = $(USWIFT_ARCH_BIN_PATH)
+OBJECT_OUTPUT_DIR = $(BUILD_DIR)/$(CORE)
+
+RUNTIME_OBJECTS = $(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_C:.c=.o) $(RUNTIME_CPP:.cpp=.o) \
+$(LLVM_RUNTIME_CPP:.cpp=.clang.o) $(RUNTIME_CLANG_CPP:.cpp=.clang.o) $(LLVM_RUNTIME_CLANG_C:.c=.clang.o) \
+$(RUNTIME_CLANG_C:.c=.clang.o))
+
+LLVM_COMPILER_LIB_OBJECTS = $(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(LLVM_RUNTIME_C:.c=.o))
+
+ALL_OBJECTS = $(RUNTIME_OBJECTS) 
+
+EXPERIMENTAL_RUNTIME_OBJECTS = $(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_CLANG_EXPERIMENTAL_CPP:.cpp=.clang.o))
+
+EXTRA_RUNTIME_INCLUDES = -Illvm-include -Illvm-swift-built-include
+
+# These are built and deployed with the main products (the modules), for add to final link
+# in projects.
+ifeq ($(ARCH),AVR)
+STANDALONE_AVR = missing_runtime_unit_testing debug_malloc wrapping_array_handler
+
+ifeq ($(CORE),avr5)
+STANDALONE_UNO = # missing_runtime_show_warning
+MCU_FOR_STANDALONE = atmega328p
+else
+MCU_FOR_STANDALONE = $(MCU)
+endif
+
+endif
+
+
+
+# need a more portable alternative to the hard coded delay functions used on the AVR platform
+# for missing_runtime_show_warning.c
+STANDALONE_COMMON = missing_runtime_stub
+
+STANDALONE = $(STANDALONE_COMMON) $(STANDALONE_AVR) $(STANDALONE_UNO)
+
+STANDALONE_OBJECTS = $(patsubst %,$(OBJECT_OUTPUT_DIR)/%.clang.o,$(STANDALONE))
+STANDALONE_DEPS = $(patsubst %,$(RUNTIME_DIR)/%.c,$(STANDALONE))
+
+include Makefile.in
+
+$(info OBJECT_OUTPUT_DIR: $(OBJECT_OUTPUT_DIR))
+$(info $(OBJECT_OUTPUT_DIR)/lib$(MODULE_NAME).a)
+
+ifeq (, $(shell which $(ARCH_GNU_TOOLS_BIN_DIR)$(ARCH_GCC_BIN)))
+$(warning avr-gcc not found, will skip some targets)
+GCC_BASED_OBJECTS =
+MATH_SHIMS_LIB =
+else
+GCC_BASED_OBJECTS = $(LLVM_COMPILER_LIB_OBJECTS)
+MATH_SHIMS_LIB = libMathShims.a
+endif
+
+# The "standard library" consists of a clang/swift module and object library
+# effectively as equivalent to headers and static library in other products
+
+# ** TARGETS **
+
+# top level (this is probably not used as the adjunct is driven by the main file)
+all: $(OBJECT_OUTPUT_DIR)/lib$(MODULE_NAME).a $(EXPERIMENTAL_RUNTIME_LIB) $(STANDALONE_OBJECTS) $(MATH_SHIMS_LIB)
+
+$(BUILD_DIR):
+	mkdir -p $@
+
+$(OBJECT_OUTPUT_DIR):
+	mkdir -p $@
+
+# ifneq ($(EXPERIMENTAL_FEATURE),Embedded)
+# # Only build and link our experimental ARC runtime if we are not in embedded mode (otherwise use the embedded mini runtime)
+# EXPERIMENTAL_RUNTIME_LIB = $(OBJECT_OUTPUT_DIR)/lib$(MODULE_NAME)ExperimentalRuntime.a
+# endif
+
+# ==> libraries
+
+$(info "CHANGE dependencies to be per core when time permits")
+
+$(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_C:.c=.o)) : $(OBJECT_OUTPUT_DIR)/%.o : $(RUNTIME_DIR)/%.c | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_DIR)/%,$(@:.o=.c)); \
+	DEPS_FILE=$(@:.o=.c.d); \
+	$(GCC) -c -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+$(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_CPP:.cpp=.o)) : $(OBJECT_OUTPUT_DIR)/%.o : $(RUNTIME_DIR)/%.cpp | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_DIR)/%,$(@:.o=.cpp)); \
+	DEPS_FILE=$(@:.o=.cpp.d); \
+	$(GCC_PLUS) -c -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+$(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(LLVM_RUNTIME_C:.c=.o)) : $(OBJECT_OUTPUT_DIR)/%.o : $(LLVM_RUNTIME_DIR)/%.c | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(LLVM_RUNTIME_DIR)/%,$(@:.o=.c)); \
+	DEPS_FILE=$(@:.o=.c.d); \
+	$(GCC) -c -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+#changed to llvm....
+
+$(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(LLVM_RUNTIME_CPP:.cpp=.clang.o)) : $(OBJECT_OUTPUT_DIR)/%.clang.o : $(LLVM_RUNTIME_DIR)/%.cpp $(patsubst %,$(RUNTIME_DIR)/%,$(RUNTIME_CLANG_H)) $(patsubst %,$(SHIMS_DIR)/%,$(SHIMS_H)) | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(LLVM_RUNTIME_DIR)/%,$(@:.clang.o=.cpp)); \
+	DEPS_FILE=$(@:.clang.o=.cpp.d); \
+	$(CLANG_PP) -Oz -c -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+
+$(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_CLANG_C:.c=.clang.o)) : $(OBJECT_OUTPUT_DIR)/%.clang.o : $(RUNTIME_DIR)/%.c | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_DIR)/%,$(@:.clang.o=.c)); \
+	DEPS_FILE=$(@:.clang.o=.c.d); \
+	$(CLANG) -Oz -c -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+# via clang
+$(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(LLVM_RUNTIME_CLANG_C:.c=.clang.o)) : $(OBJECT_OUTPUT_DIR)/%.clang.o : $(LLVM_RUNTIME_DIR)/%.c | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(LLVM_RUNTIME_DIR)/%,$(@:.clang.o=.c)); \
+	DEPS_FILE=$(@:.clang.o=.c.d); \
+	$(CLANG) -Oz -c -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+$(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_CLANG_CPP:.cpp=.clang.o)) : $(OBJECT_OUTPUT_DIR)/%.clang.o : $(RUNTIME_DIR)/%.cpp $(patsubst %,$(RUNTIME_DIR)/%,$(RUNTIME_CLANG_H)) $(patsubst %,$(SHIMS_DIR)/%,$(SHIMS_H)) | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_DIR)/%,$(@:.clang.o=.cpp)); \
+	DEPS_FILE=$(@:.clang.o=.cpp.d); \
+	$(CLANG_PP) -Oz -c -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+$(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_CLANG_EXPERIMENTAL_CPP:.cpp=.clang.o)) : $(OBJECT_OUTPUT_DIR)/%.clang.o : $(RUNTIME_DIR)/%.cpp $(patsubst %,$(RUNTIME_DIR)/%,$(RUNTIME_CLANG_H)) $(patsubst %,$(SHIMS_DIR)/%,$(SHIMS_H)) | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_DIR)/%,$(@:.clang.o=.cpp)); \
+	DEPS_FILE=$(@:.clang.o=.cpp.d); \
+	$(CLANG_PP) -Oz -c $(EXTRA_RUNTIME_INCLUDES) -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+$(STANDALONE_OBJECTS) : $(STANDALONE_DEPS) | $(OBJECT_OUTPUT_DIR)
+	SOURCE_FILE=$(patsubst $(OBJECT_OUTPUT_DIR)/%,$(RUNTIME_DIR)/%,$(@:.clang.o=.c)); \
+	DEPS_FILE=$(@:.clang.o=.c.d); \
+	$(CLANG) -Oz -c -o $@ $${SOURCE_FILE} -MMD -MF$${DEPS_FILE}
+
+$(OBJECT_OUTPUT_DIR)/lib$(MODULE_NAME).a: $(ALL_OBJECTS)| $(OBJECT_OUTPUT_DIR)
+	@echo "** Create Swift runtime library archive"
+	$(AR) -o $@ $^
+	echo "Made archive $@"
+
+$(OBJECT_OUTPUT_DIR)/lib$(MODULE_NAME)ExperimentalRuntime.a: $(EXPERIMENTAL_RUNTIME_OBJECTS) | $(OBJECT_OUTPUT_DIR)
+	@echo "** Create Swift experimental runtime archive"
+	$(AR) -o $@ $^
+	echo "Made archive $@"
+
+ifneq ($(MATH_SHIMS_LIB),)
+$(MATH_SHIMS_LIB): $(OBJECT_OUTPUT_DIR)/$(MATH_SHIMS_LIB)
+
+$(OBJECT_OUTPUT_DIR)/$(MATH_SHIMS_LIB): $(GCC_BASED_OBJECTS) | $(OBJECT_OUTPUT_DIR)
+	@echo "** Create math shims archive"
+	$(AR) -o $@ $^
+	echo "Made archive $@"
+endif
+
+-include $(OBJECT_OUTPUT_DIR)/*.d
+
+ifneq ($(MATH_SHIMS_LIB),)
+ARCHIVES_TO_INSTALL := libSwift.a $(MATH_SHIMS_LIB)
+else
+ARCHIVES_TO_INSTALL := libSwift.a
+endif
+
+# ==> other
+clean:
+	rm -rf bin
+
+# USWIFT_ARCH_BINARY_REPOSITORY_STAGING_CORE_PATH = $(USWIFT_ARCH_BINARY_REPOSITORY_STAGING_PATH)/$(CORE)
+
+# update-binary-repository: all
+# 	mkdir -p "$(USWIFT_ARCH_BINARY_REPOSITORY_STAGING_CORE_PATH)"
+# 	cp $(patsubst %,$(OBJECT_OUTPUT_DIR)/%,$(ARCHIVES_TO_INSTALL)) "$(USWIFT_ARCH_BINARY_REPOSITORY_STAGING_CORE_PATH)"/
+# 	cp $(STANDALONE_OBJECTS) $(GCC_BASED_OBJECTS) "$(USWIFT_ARCH_BINARY_REPOSITORY_STAGING_CORE_PATH)"/
+
+.PHONY : all clean install touchvars $(MATH_SHIMS_LIB)
