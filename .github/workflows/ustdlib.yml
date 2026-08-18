@@ -12,14 +12,13 @@ on:
         description: Update the binary repos uSwift-AVR and uSwift-ARM automatically.
         default: false
 
-#temporarily run only manually while we get it working
-  # push:
-  #   branches:
-  #   - main
+  push:
+    branches:
+    - main
 
-  # pull_request:
-  #   branches:
-  #   - main
+  pull_request:
+    branches:
+    - main
 
 # ARCH: 'AVR'
 env:
@@ -37,6 +36,7 @@ jobs:
       S4A_WORKSPACE: ${{ github.workspace }}/workspace/${{ matrix.arch }}/S4A-install
       ARCH: ${{ matrix.arch }}
       SWIFT_COMPILER_DIR: ${{ github.workspace }}/compilers/swift
+      COMPILERS: ${{ secrets.COMPILERS }}
 
     steps:
 
