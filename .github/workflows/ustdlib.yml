@@ -25,7 +25,7 @@ env:
   IN_CI: 'yes'
 
 jobs:
-  build-avr:
+  build-uswift:
     runs-on: [self-hosted, macOS, avrgcc]
 
     strategy:

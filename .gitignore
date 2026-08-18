@@ -1,2 +1,5 @@
 *.dSYM.zip
 *.dSYM
+bin
+deploy
+workspace
