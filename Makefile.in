@@ -305,16 +305,7 @@ endif
 
 ifneq ($(EXPERIMENTAL_FEATURE),)
 ifeq ($(EXPERIMENTAL_FEATURE),Embedded)
-EXPERIMENTAL_FEATURE_FLAG = -enable-experimental-feature $(EXPERIMENTAL_FEATURE) -enable-experimental-feature LifetimeDependence\
- -enable-experimental-feature MoveOnly -enable-experimental-feature ExistentialAny -enable-experimental-feature BitwiseCopyable\
- -enable-experimental-feature NonescapableTypes -enable-experimental-feature InoutLifetimeDependence\
- -enable-experimental-feature LifetimeDependenceMutableAccessors -enable-experimental-feature Lifetimes\
- -enable-experimental-feature TypedThrows -enable-experimental-feature MoveOnlyPartialConsumption\
- -enable-experimental-feature NoncopyableGenerics -enable-experimental-feature ConformanceSuppression\
- -enable-experimental-feature BorrowingSwitch -enable-experimental-feature MemorySafetyAttributes\
- -enable-experimental-feature NonescapableAccessorOnTrivial -enable-experimental-feature AddressableParameters\
- -enable-experimental-feature AddressableTypes -enable-experimental-feature BuiltinEmplaceTypedThrows\
- -enable-experimental-feature MoveOnlyTypes
+EXPERIMENTAL_FEATURE_FLAG = -enable-experimental-feature $(EXPERIMENTAL_FEATURE) @experimental-features.txt
 else
 EXPERIMENTAL_FEATURE_FLAG = -enable-experimental-feature $(EXPERIMENTAL_FEATURE)
 endif

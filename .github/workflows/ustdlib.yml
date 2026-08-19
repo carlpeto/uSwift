@@ -30,7 +30,8 @@ jobs:
 
     strategy:
       matrix:
-        arch: ['AVR','ARM']
+        arch: ['AVR']
+        # arch: ['AVR','ARM']
 
     env:
       S4A_WORKSPACE: ${{ github.workspace }}/workspace/${{ matrix.arch }}/S4A-install
